@@ -70,7 +70,8 @@ class JukeboxHandler(tornado.web.RequestHandler):
         """Returns basic jukebox information."""
         result = {
             'listeners': self.jukebox.listeners,
-            'time': self.jukebox.time
+            'time': self.jukebox.time,
+            'isMaster': self.jukebox.isMaster()
         }
         
         self.finish(json.dumps(result))
@@ -85,6 +86,7 @@ class Jukebox():
         self.time = time
 
     def isMaster(self):
+        """First come first served."""
         return self.listeners == 1
 
     def join(self):

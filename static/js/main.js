@@ -1,55 +1,55 @@
-var isPlaying = false;
-var time = 0;
-
 $(document).ready(function(){
     //Initialize Websocket
     var connection = new WebSocket("ws://" + window.location.host + "/websocket");
+    var clientID = 0;
+    var clients = [];
 
+    var isPlaying = false;
+    var time = 0;
+
+    // Initialize music
+    var music = new Howl({
+        src: ['/static/test.mp3']
+    });
+    var playerID = 0;
+
+    // Fetch information from server 
+    updateJukebox();
     window.setInterval(updateJukebox, 1000);
 
     function updateJukebox() {
         $.get("/jukebox", function(data) {
             var jukebox = JSON.parse(data);
             $("#listener-amount").html(jukebox['listeners']);
+            
+            //$.inArray(clientID, clients) ||
+            if (jukebox["isMaster"]) { // Determine if client is master
+                //clients.push(jukebox["clientID"]);
+                // Send player timestamp to server
+                $.post("/sync", { time: music.seek() });
+            } else {
+                // Update client-side timestamp
+                time = jukebox["time"];
+            }
         });
     }
-
-    var music = new Howl({
-        src: ['/static/test.mp3']
-    });       
-
-    $.get("/sync", function(data) {
-        if (data == "master") {
-            time = 0;
-            
-            window.setInterval(function(){
-                    $.post("/sync", { time: music.seek() });
-            }, 1000);
-
-        } else {
-            time = data;
-
-            window.setInterval(function(){
-                $.get("/sync", function(data){
-                    time = data; 
-                });
-            }, 1000);
-        }
-    });
-
-	var id = 0;
+    
+    // Player start
     $('#player-play').click(function(){
         if (!isPlaying) {
-            id = music.play();
-            music.volume(0.3);
-            music.seek(time + 10, id);
+            isPlaying = true;
+            playerID = music.play();
+            music.volume($("#player-volume").val()); // Directly fetch from slider
+            music.seek(time + 10, playerID);
         }
-    }); 
-    
-    $("#player-volume").on("change mousemove", function() {
-        music.volume($(this).val(), id);
     });
 
+    // Player volume control 
+    $("#player-volume").on("change mousemove", function() {
+        music.volume($(this).val(), playerID);
+    });
+
+    // TODO
     connection.onclose = function(e) {
     }
 
