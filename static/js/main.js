@@ -4,7 +4,7 @@ var time = 0;
 $(document).ready(function(){
     //Initialize Websocket
     var connection = new WebSocket("ws://" + window.location.host + "/websocket");
- 
+
     window.setInterval(updateJukebox, 1000);
 
     function updateJukebox() {
@@ -37,12 +37,18 @@ $(document).ready(function(){
         }
     });
 
+	var id = 0;
     $('#player-play').click(function(){
         if (!isPlaying) {
-            var id = music.play();
+            id = music.play();
+            music.volume(0.3);
             music.seek(time + 10, id);
         }
     }); 
+    
+    $("#player-volume").on("change mousemove", function() {
+        music.volume($(this).val(), id);
+    });
 
     connection.onclose = function(e) {
     }
