@@ -1,57 +1,65 @@
+// TODO: better error checking
 $(document).ready(function(){
     //Initialize Websocket
     var connection = new WebSocket("ws://" + window.location.host + "/websocket");
-    var clientID = 0;
-    var clients = [];
-
+    
     var isPlaying = false;
     var time = 0;
-    
+
+    var music = null;
+    var musicVolume = $("#player-volume").val();
     var playerID = 0;
 
     // Initialize music
-    // TODO: fetch current music
-    var music = new Howl({
-        src: ['/static/test.mp3'],
-        loop: false,
+    $.getJSON("/jukebox?song=current", function(data) {
+        music = new Howl({
+            src: [data["src"]],
+            loop: false,
+        });
     });
 
     // Player start
     $('#player-play').click(function() {
-        if (!isPlaying) {
+        if (!isPlaying && music != null) {
             isPlaying = true;
             playerID = music.play();
-            music.volume($("#player-volume").val()); // Directly fetch from slider
+            music.volume(musicVolume);
             music.seek(time, playerID);
         }
     });
 
     // Player volume control 
     $("#player-volume").on("change mousemove", function() {
-        music.volume($(this).val(), playerID);
+        if (music != null) {
+            musicVolume = $(this).val();
+            music.volume(musicVolume, playerID);
+        }
     });
 
     connection.onclose = function(e) {
     }
 
     connection.onmessage = function(e) {
-        if (music.duration() == 0) // Not initialized yet
+        if (music == null || music.duration() == 0) // Not initialized yet
             return;
 
         var jukebox = JSON.parse(e.data);
 
         // Determine if we should go for the next song
-        if (music.duration() <= jukebox["time"]) {
-            $.getJSON("/nextsong", function(data) {
+        if (music.duration() != 0 && jukebox["time"] != 0 && music.duration() <= jukebox["time"]) {
+            $.getJSON("/jukebox?song=next", function(data) {
                 music = new Howl({
                     src: [data["src"]]
                 });
 
                 // Immediate playing
-                if (isPlaying)
+                if (isPlaying) {
                     playerID = music.play();
+                    music.volume(musicVolume);
+                }
 
                 $(".progress-bar").css({'width': '0%'});
+                time = 0;
             }); 
         }
 

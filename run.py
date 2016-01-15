@@ -15,7 +15,7 @@ class Application(tornado.web.Application):
         handlers = [
             (r"/", MainHandler),
             (r"/websocket", WebSocketHandler, { 'jukebox': self.jukebox }),
-            (r"/nextsong", NextSongHandler, { 'jukebox': self.jukebox })
+            (r"/jukebox", JukeboxHandler, { 'jukebox': self.jukebox }),
         ]
         dirname = os.path.dirname(__file__)
         settings = {
@@ -40,49 +40,53 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         self.jukebox = jukebox
 
     def open(self):
+        """Handle joining."""
         self.jukebox.join()
+        
+        # Sync with client
         self.sync() # Sync immediately
-        self.periodic = tornado.ioloop.PeriodicCallback(self.sync, 1000) # Schedule client syncing
+        self.periodic = tornado.ioloop.PeriodicCallback(self.sync, 1000) # Scheduling
         self.periodic.start()
 
     def on_message(self, message):
         mp("on_message", message);
     
     def on_close(self):
+        """Handle closing."""
         self.jukebox.leave()
         self.periodic.stop()
 
     def sync(self):
-        """Sync music."""
+        """Sync music to client."""
         result = {
-            "time": self.jukebox.time,
-            "listeners": self.jukebox.listeners,
+            "src": self.jukebox.src,
             "title": self.jukebox.title,
-            "artist": self.jukebox.artist
+            "artist": self.jukebox.artist,
+            "time": self.jukebox.time,
+            "listeners": self.jukebox.listeners
         }
         self.write_message(result)
 
-class NextSongHandler(tornado.web.RequestHandler):
+class JukeboxHandler(tornado.web.RequestHandler):
     
     def initialize(self, jukebox):
         self.jukebox = jukebox
 
     def get(self):
-        self.jukebox.time = 0 # Reset jukebox time
-        
-        # TODO
-        result = {
-            'src': '/static/test2.mp3'        
-        }
-        self.finish(json.dumps(result))
+        """Return basic jukebox information."""
+        if self.get_argument("song") == "current":
+            self.finish(self.jukebox.get_current())
+        elif self.get_argument("song") == "next":
+            self.finish(self.jukebox.get_next())
 
 class Jukebox():
     
     def __init__(self):
-        self.title = ""
-        self.artist = ""
-        self.time = 223
-        self.listeners = 0
+        self.title = "Demo" # Song title
+        self.artist = "Some Artist" # Song artist
+        self.src = "/static/test.mp3" # Song file
+        self.time = 0 # Current seek time
+        self.listeners = 0 # Current listeners
 
     def join(self):
         self.listeners += 1
@@ -92,6 +96,21 @@ class Jukebox():
 
     def sync(self):
         self.time += 1
+
+    def get_current(self):
+        return {
+            'title': self.title,
+            'artist': self.artist,
+            'src': self.src
+        }
+
+    def get_next(self):
+        """TODO"""
+        self.title = "next track"
+        self.artist = "next artist"
+        self.src = "/static/test2.mp3"
+        self.time = 0
+        return get_current()
 
 def mp(message, level=0):
     """Custom print method."""
