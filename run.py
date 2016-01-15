@@ -9,11 +9,12 @@ class Application(tornado.web.Application):
     def __init__(self):
         self.jukebox = Jukebox()
 
+        self.periodic = tornado.ioloop.PeriodicCallback(self.sync, 1000)
+        self.periodic.start()
+
         handlers = [
             (r"/", MainHandler),
-            (r"/websocket", WebSocketHandler, {"jukebox": self.jukebox }),
-            (r"/sync", SyncHandler, {"jukebox": self.jukebox }),
-            (r"/jukebox", JukeboxHandler, {"jukebox": self.jukebox })
+            (r"/websocket", WebSocketHandler, { 'jukebox': self.jukebox }), 
         ]
         dirname = os.path.dirname(__file__)
         settings = {
@@ -25,9 +26,11 @@ class Application(tornado.web.Application):
 
         mp("Running on port 8888");
 
+    def sync(self):
+        self.jukebox.sync()
+
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        print(os.path.getctime('static/test.mp3'))
         self.render("index.html")
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
@@ -37,65 +40,39 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
     def open(self):
         self.jukebox.join()
-    
+        self.sync() # Sync immediately
+        self.periodic = tornado.ioloop.PeriodicCallback(self.sync, 1000) # Schedule client syncing
+        self.periodic.start()
+
     def on_message(self, message):
         mp("on_message", message);
     
     def on_close(self):
         self.jukebox.leave()
+        self.periodic.stop()
 
-class SyncHandler(tornado.web.RequestHandler):
-    
-    def initialize(self, jukebox):
-        self.jukebox = jukebox
-
-    def get(self):
-        if self.jukebox.isMaster():
-            self.write("master")
-        else:
-            self.write(self.jukebox.time)
-    
-    def post(self):
-        #todo: authentication for master
-        master_time = self.get_argument("time", default=None, strip=False)
-        self.jukebox.set_time(master_time)
-        self.write("OK")
-
-class JukeboxHandler(tornado.web.RequestHandler):
-   
-    def initialize(self, jukebox):
-        self.jukebox = jukebox
-
-    def get(self):
-        """Returns basic jukebox information."""
+    def sync(self):
+        """Sync music."""
         result = {
-            'listeners': self.jukebox.listeners,
-            'time': self.jukebox.time,
-            'isMaster': self.jukebox.isMaster()
+            "time": self.jukebox.time,
+            "listeners": self.jukebox.listeners
         }
-        
-        self.finish(json.dumps(result))
+        self.write_message(result)
 
 class Jukebox():
-
+    
     def __init__(self):
-        self.listeners = 0
         self.time = 0
-
-    def set_time(self, time):
-        self.time = time
-
-    def isMaster(self):
-        """First come first served."""
-        return self.listeners == 1
+        self.listeners = 0
 
     def join(self):
-        mp("User joined")
         self.listeners += 1
 
     def leave(self):
-        mp("User left")
         self.listeners -= 1
+
+    def sync(self):
+        self.time += 1
 
 def mp(message, level=0):
     """Custom print method."""
@@ -113,7 +90,6 @@ def main():
     application = Application()
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(8888)
-
     tornado.ioloop.IOLoop.instance().start()
 
 if __name__ == "__main__":
