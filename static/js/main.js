@@ -7,14 +7,17 @@ $(document).ready(function(){
     var isPlaying = false;
     var time = 0;
     
-    // Initialize music
-    var music = new Howl({
-        src: ['/static/test.mp3']
-    });
     var playerID = 0;
 
+    // Initialize music
+    // TODO: fetch current music
+    var music = new Howl({
+        src: ['/static/test.mp3'],
+        loop: false,
+    });
+
     // Player start
-    $('#player-play').click(function(){
+    $('#player-play').click(function() {
         if (!isPlaying) {
             isPlaying = true;
             playerID = music.play();
@@ -28,15 +31,42 @@ $(document).ready(function(){
         music.volume($(this).val(), playerID);
     });
 
-    // TODO
     connection.onclose = function(e) {
     }
 
     connection.onmessage = function(e) {
-        //console.log(e.data);
+        if (music.duration() == 0) // Not initialized yet
+            return;
+
         var jukebox = JSON.parse(e.data);
+
+        // Determine if we should go for the next song
+        if (music.duration() <= jukebox["time"]) {
+            $.getJSON("/nextsong", function(data) {
+                music = new Howl({
+                    src: [data["src"]]
+                });
+
+                // Immediate playing
+                if (isPlaying)
+                    playerID = music.play();
+
+                $(".progress-bar").css({'width': '0%'});
+            }); 
+        }
+
+        // Progress bar
+        if (music.duration() > 0) {
+            var progressMax = music.duration();
+            var currentProgress = Math.round(jukebox["time"]/(progressMax/100));
+            if (currentProgress <= 100)
+                $(".progress-bar").css({'width': currentProgress + '%'});
+        }
+
         time = jukebox["time"];
         $("#listener-amount").html(jukebox["listeners"]);
+        $("#player-title").html(jukebox["title"]);
+        $("#player-artist").html(jukebox["artist"]);
     }
 });
 

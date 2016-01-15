@@ -14,7 +14,8 @@ class Application(tornado.web.Application):
 
         handlers = [
             (r"/", MainHandler),
-            (r"/websocket", WebSocketHandler, { 'jukebox': self.jukebox }), 
+            (r"/websocket", WebSocketHandler, { 'jukebox': self.jukebox }),
+            (r"/nextsong", NextSongHandler, { 'jukebox': self.jukebox })
         ]
         dirname = os.path.dirname(__file__)
         settings = {
@@ -55,14 +56,32 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         """Sync music."""
         result = {
             "time": self.jukebox.time,
-            "listeners": self.jukebox.listeners
+            "listeners": self.jukebox.listeners,
+            "title": self.jukebox.title,
+            "artist": self.jukebox.artist
         }
         self.write_message(result)
+
+class NextSongHandler(tornado.web.RequestHandler):
+    
+    def initialize(self, jukebox):
+        self.jukebox = jukebox
+
+    def get(self):
+        self.jukebox.time = 0 # Reset jukebox time
+        
+        # TODO
+        result = {
+            'src': '/static/test2.mp3'        
+        }
+        self.finish(json.dumps(result))
 
 class Jukebox():
     
     def __init__(self):
-        self.time = 0
+        self.title = ""
+        self.artist = ""
+        self.time = 223
         self.listeners = 0
 
     def join(self):
