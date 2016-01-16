@@ -5,6 +5,7 @@ $(document).ready(function(){
     
     var isPlaying = false;
     var time = 0;
+    var end_time = 0;
 
     var music = null;
     var musicVolume = $("#player-volume").val();
@@ -40,13 +41,13 @@ $(document).ready(function(){
     }
 
     connection.onmessage = function(e) {
-        if (music == null || music.duration() == 0) // Not initialized yet
+        if (music == null) // Not initialized yet
             return;
 
         var jukebox = JSON.parse(e.data);
 
         // Determine if we should go for the next song
-        if (music.duration() != 0 && jukebox["time"] != 0 && music.duration() <= jukebox["time"]) {
+        if (end_time != 0 && jukebox["time"] != 0 && end_time <= jukebox["time"]) {
             $.getJSON("/jukebox?song=next", function(data) {
                 music = new Howl({
                     src: [data["src"]]
@@ -64,14 +65,15 @@ $(document).ready(function(){
         }
 
         // Progress bar
-        if (music.duration() > 0) {
-            var progressMax = music.duration();
+        if (end_time != 0) {
+            var progressMax = end_time;
             var currentProgress = Math.round(jukebox["time"]/(progressMax/100));
             if (currentProgress <= 100)
                 $(".progress-bar").css({'width': currentProgress + '%'});
         }
 
         time = jukebox["time"];
+        end_time = jukebox["end_time"];
         $("#listener-amount").html(jukebox["listeners"]);
         $("#player-title").html(jukebox["title"]);
         $("#player-artist").html(jukebox["artist"]);
